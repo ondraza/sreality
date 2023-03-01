@@ -1,0 +1,50 @@
+version: '3'
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: 'sreality_db'
+      POSTGRES_USER: 'postgres'
+      POSTGRES_PASSWORD: 'password'
+    ports:
+      - '6789:5432'
+    volumes:
+      - ./db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  scrapy:
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_HOST: 'db'
+      POSTGRES_DB: 'sreality_db'
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: 'postgres'
+      POSTGRES_PASSWORD: 'password'
+    volumes:
+      - ./sreality_app:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "sleep 5 && cd sreality_scraper && scrapy crawl sreality"]
+
+  http:
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./sreality_app:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["sh", "-c", "sleep 10 && cd sreality_server && python sreality_server.py"]
